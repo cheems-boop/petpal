@@ -2,6 +2,8 @@
 build/
 *.apk
 *.keystore
+.keystore/
+*.idsig
 
 # 运行时文件不入库
 files/

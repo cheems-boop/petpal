@@ -24,7 +24,9 @@ APKSIGNER=${APKSIGNER:-$PREFIX/bin/apksigner}
 KEYTOOL=${KEYTOOL:-$PREFIX/bin/keytool}
 PY=${PY:-$PREFIX/bin/python3}
 FRAMEWORK=${FRAMEWORK:-/system/framework/framework-res.apk}
-KEYSTORE=${KEYSTORE:-$ROOT/build/petpal.keystore}
+# keystore 必须放在 build/ 之外：build/ 每次构建都会被清空，
+# 否则每次都会重生一把密钥，签名漂移、无法覆盖升级
+KEYSTORE=${KEYSTORE:-$ROOT/.keystore/petpal.keystore}
 KEY_ALIAS=${KEY_ALIAS:-petpal}
 KEY_PASS=${KEY_PASS:-petpal-dev}
 
@@ -81,6 +83,7 @@ with zipfile.ZipFile(apk, 'a', zipfile.ZIP_DEFLATED) as z:
 print('apk entries:', zipfile.ZipFile(apk).namelist())
 PYEOF
 
+mkdir -p "$(dirname "$KEYSTORE")"
 if [ ! -f "$KEYSTORE" ]; then
   echo "   首次构建，生成调试 keystore（发布请用 tools/gen-keystore.sh + secrets）"
   "$KEYTOOL" -genkeypair -keystore "$KEYSTORE" -alias "$KEY_ALIAS" \

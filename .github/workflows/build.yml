@@ -20,7 +20,8 @@ jobs:
           VER=$(sed -n 's/^version=v//p' module/module.prop | head -1)
           CODE=$(sed -n 's/^versionCode=//p' module/module.prop | head -1)
           echo "name=$VER" >> $GITHUB_OUTPUT
-          echo "code=1$CODE" >> $GITHUB_OUTPUT
+          # 10000+ 避开历史骨架版本号（v1.5 时曾是 36）；不能写成 "1$CODE"，那是字符串拼接
+          echo "code=$((10000 + CODE))" >> $GITHUB_OUTPUT
 
       # C 核心：零依赖，直接用 NDK 的 clang
       - name: 编译 libpethost.so
@@ -38,14 +39,19 @@ jobs:
 
       - name: dex
         run: |
+          mkdir -p out
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
           if [ -f src/android/java/pet/runtime/Main.java ]; then
+            echo "从 Java 源码编译"
             mkdir -p out/classes
             javac -source 11 -target 11 -nowarn -d out/classes src/android/java/pet/runtime/*.java
-            $ANDROID_HOME/build-tools/*/d8 --min-api 28 --output out out/classes/pet/runtime/*.class
+            $BT/d8 --min-api 28 --output out out/classes/pet/runtime/*.class
           else
+            # 欠账：Java 源码尚未从 smali 重建，先用预编译字节码（见 docs/DECISIONS.md）
             echo "使用预编译字节码 src/android/dex/classes.dex"
-            cp src/android/dex/classes.dex out/classes.dex 2>/dev/null || { mkdir -p out; cp src/android/dex/classes.dex out/classes.dex; }
+            cp src/android/dex/classes.dex out/classes.dex
           fi
+          ls -l out/classes.dex
 
       - name: aapt2 link + 打包
         run: |
