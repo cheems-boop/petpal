@@ -832,6 +832,13 @@ static void *render_loop(void *arg)
     struct timespec t0, t1;
     clock_gettime(CLOCK_MONOTONIC, &t0);
     while (gRun) {
+        /* v1.6 修正：ctl 必须在“暂停分支”之前处理。
+         * v1.5 把它放在 `if (gPaused) continue;` 之后，结果 pause 之后永远读不到 resume，
+         * 只能重启进程才能恢复渲染（实测 f=285 -> f=285 卡死）。 */
+        ST_LOCK();
+        check_ctl();
+        ST_UNLOCK();
+
         ANativeWindow *win = NULL;
         pthread_mutex_lock(&gLock);
         win = gWin;
@@ -879,7 +886,6 @@ static void *render_loop(void *arg)
         gLastDt = dt;
         int busy;
         ST_LOCK();
-        check_ctl();
         tick(dt);
         busy = (P.state != ST_IDLE) || (gBubShow > 0.015f) || (P.squash > 0.02f);
         ST_UNLOCK();
