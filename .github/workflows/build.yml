@@ -7,6 +7,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# tag 触发时要创建 Release，必须显式给 GITHUB_TOKEN 写权限。
+# 新仓库的默认权限常是只读，不写这一行会得到 403
+# "Resource not accessible by integration"，表现为 tag 那次 run 挂掉。
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -106,6 +112,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          name: petpal v${{ steps.v.outputs.name }}
+          # Release 正文直接用仓库里的更新说明（发布前改这个文件即可）
+          body_path: docs/release-notes.md
           files: |
             petpal.apk
             petpal-module.zip
