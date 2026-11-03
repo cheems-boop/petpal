@@ -24,11 +24,14 @@ APKSIGNER=${APKSIGNER:-$PREFIX/bin/apksigner}
 KEYTOOL=${KEYTOOL:-$PREFIX/bin/keytool}
 PY=${PY:-$PREFIX/bin/python3}
 FRAMEWORK=${FRAMEWORK:-/system/framework/framework-res.apk}
-# keystore 必须放在 build/ 之外：build/ 每次构建都会被清空，
-# 否则每次都会重生一把密钥，签名漂移、无法覆盖升级
-KEYSTORE=${KEYSTORE:-$ROOT/.keystore/petpal.keystore}
+# 签名：仓库自带 tools/signing/petpal.jks（别名 petpal / 口令 petpal）。
+# 密钥公开是刻意的取舍：零 secrets、`git tag` 即可发正式包；代价是别人也能签出同名包，
+# 所以 README 里写明“只从 Releases 下载”。详见 docs/DECISIONS.md。
+# 想换私钥：拷新 .jks 到同路径，或设 KEYSTORE/KEY_PASS/KEY_ALIAS 环境变量覆盖。
+# 注意：keystore 不能放 build/ 下——build/ 每次构建会被清空，会导致签名漂移。
+KEYSTORE=${KEYSTORE:-$ROOT/tools/signing/petpal.jks}
 KEY_ALIAS=${KEY_ALIAS:-petpal}
-KEY_PASS=${KEY_PASS:-petpal-dev}
+KEY_PASS=${KEY_PASS:-petpal}
 
 need() { [ -x "$1" ] || { echo "缺少工具: $1"; exit 1; }; }
 need "$CLANG"; need "$AAPT2"; need "$APKSIGNER"; need "$PY"
@@ -85,7 +88,7 @@ PYEOF
 
 mkdir -p "$(dirname "$KEYSTORE")"
 if [ ! -f "$KEYSTORE" ]; then
-  echo "   首次构建，生成调试 keystore（发布请用 tools/gen-keystore.sh + secrets）"
+  echo "   ⚠ 仓库自带的 $KEYSTORE 不存在，临时生成一把（签名会与正式版不同！）"
   "$KEYTOOL" -genkeypair -keystore "$KEYSTORE" -alias "$KEY_ALIAS" \
     -keyalg RSA -keysize 2048 -validity 10000 \
     -storepass "$KEY_PASS" -keypass "$KEY_PASS" \

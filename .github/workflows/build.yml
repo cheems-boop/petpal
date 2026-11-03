@@ -66,24 +66,14 @@ jobs:
             cp ../libpethost.so lib/arm64-v8a/ && zip -q -r base.apk lib && cd ..
 
       - name: 签名
-        env:
-          KS_B64: ${{ secrets.KEYSTORE_BASE64 }}
-          KS_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KS_PASS: ${{ secrets.KEY_PASS }}
         run: |
           BT=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
-          if [ -n "$KS_B64" ]; then
-            echo "$KS_B64" | base64 -d > release.keystore
-            $BT/apksigner sign --ks release.keystore --ks-key-alias "$KS_ALIAS" \
-              --ks-pass "pass:$KS_PASS" --key-pass "pass:$KS_PASS" \
-              --out petpal.apk out/base.apk
-          else
-            keytool -genkeypair -keystore dev.keystore -alias petpal -keyalg RSA -keysize 2048 \
-              -validity 10000 -storepass devdev -keypass devdev -dname "CN=petpal-dev" >/dev/null 2>&1
-            $BT/apksigner sign --ks dev.keystore --ks-key-alias petpal \
-              --ks-pass pass:devdev --key-pass pass:devdev --out petpal.apk out/base.apk
-            echo "::warning::没有配置 KEYSTORE_BASE64，这次产物是 debug 签名，不能当发布包"
-          fi
+          # 签名密钥就在仓库里（tools/signing/petpal.jks）—— 刻意公开：零 secrets，
+          # tag 一推就能出正式包；代价是别人也能签同名包，README 已声明只从 Releases 下载。
+          # 想改回 secrets：把下面两行换成从 ${{ secrets.* }} 取即可。
+          $BT/apksigner sign --ks tools/signing/petpal.jks --ks-key-alias petpal \
+            --ks-pass pass:petpal --key-pass pass:petpal \
+            --out petpal.apk out/base.apk
           $BT/apksigner verify --print-certs petpal.apk | head -5
 
       - name: 打模块 zip

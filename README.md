@@ -154,6 +154,24 @@ release/petpal.apk        同上
 开发环境：**全程在一部 Android 手机上完成**，通过 MT 管理器的 MCP 接口写代码、Termux clang 编译、模块自带脚本装机验证，未使用电脑。
 从零到可运行在一个会话内完成，期间实测探明 10 项平台限制。
 
+## 签名与发布
+
+本仓库**公开自带签名密钥** `tools/signing/petpal.jks`（别名 `petpal`，口令 `petpal`）。
+这是刻意的取舍：换取「无 secrets、一条 `git tag` 就能出正式包」。
+
+- 好处：任何人都能复现出与你一致签名的 APK，CI 与本机构建可以互换
+- 代价：**密钥是公开的**，别人也能签出同名同包名的包。
+  请只从 [Releases](https://github.com/cheems-boop/petpal/releases) 下载安装包
+
+> 想换私钥：把新 `.jks` 拷到同路径，或设 `KEYSTORE` / `KEY_PASS` / `KEY_ALIAS` 环境变量覆盖，
+> CI 里改 `apksigner` 那行即可。换钥会让已装用户必须卸载重装一次。
+
+发布：
+
+```sh
+git tag v1.6.0 && git push origin v1.6.0     # CI 出包并自动建 Release
+```
+
 ## 许可
 
 MIT

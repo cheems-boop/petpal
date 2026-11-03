@@ -16,14 +16,22 @@ manifest 里残留 `versionCode=36 / versionName=16`、`theme @01030010`、
 所以 v1.6 起：`src/android/AndroidManifest.xml` 自写，`res/` 自备，CI 用
 `aapt2 + smali/d8 + apksigner` 产 APK。
 
-## 2. 签名：用自己的 keystore
+## 2. 签名：密钥直接入库（公开密钥）
 
 仓库是新建的、**没有存量用户**，所以不存在“升级要卸载重装”的成本，
-直接切自己的 release keystore（只放 GitHub Actions secrets，不进仓库）。
+直接用一把自建 keystore，并且**把它放进仓库**：`tools/signing/petpal.jks`（别名 `petpal` / 口令 `petpal`）。
 
+取舍：
+- 得：零 secrets、零生成步骤，`git tag` 一推就能出**签名一致**的正式包；
+  任何人 clone 下来都能复现同一个签名，CI 与本机构建可互换
+- 失：密钥公开 ⇒ 别人也能签出同名同包名的 APK。缓解：README 首页声明“只从 Releases 下载”；
+  且本项目的模块 zip 本来就只是 root 权限的普通 zip（KSU 不做签名校验），信任模型一致
+
+其他约束：
 - `versionCode / versionName` 由构建参数注入，单一真源是 `module/module.prop`
-- `tools/gen-keystore.sh` 生成密钥；CI 用 `KEYSTORE_BASE64 / KEY_ALIAS / KEY_PASS` 三个 secret
-- 本地调试用 debug key，不参与发布
+- keystore **不能放 `build/`**：build/ 每次构建被清空，会导致签名漂移、老包无法覆盖升级
+- 将来想换私钥：`tools/gen-keystore.sh` 生成后換路径 / 设 `KEYSTORE` 环境变量；
+  换钥会让已装用户必须卸载重装一次
 
 ## 3. 开源前必须补的三个洞
 
