@@ -37,27 +37,36 @@ jobs:
             --target=aarch64-linux-android28 -fsyntax-only -Wall -Wextra \
             -Werror -Wno-unused-parameter src/pethost.c
 
-      - name: dex
+      # javac / d8 / aapt2 都需要平台 android.jar；runner 上的 platform 版本不一定，现查现用
+      - name: 定位 android.jar
+        id: sdk
+        run: |
+          AJ=$(ls -d $ANDROID_HOME/platforms/android-*/android.jar 2>/dev/null | sort -V | tail -1)
+          if [ -z "$AJ" ]; then
+            echo "runner 上没 platform，装一个 android-36"
+            (yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" >/dev/null) || true
+            AJ=$(ls -d $ANDROID_HOME/platforms/android-*/android.jar | sort -V | tail -1)
+          fi
+          echo "android.jar=$AJ"
+          echo "jar=$AJ" >> $GITHUB_OUTPUT
+
+      - name: dex（javac + d8）
         run: |
           mkdir -p out
           BT=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
-          if [ -f src/android/java/pet/runtime/Main.java ]; then
-            echo "从 Java 源码编译"
-            mkdir -p out/classes
-            javac -source 11 -target 11 -nowarn -d out/classes src/android/java/pet/runtime/*.java
-            $BT/d8 --min-api 28 --output out out/classes/pet/runtime/*.class
-          else
-            # 欠账：Java 源码尚未从 smali 重建，先用预编译字节码（见 docs/DECISIONS.md）
-            echo "使用预编译字节码 src/android/dex/classes.dex"
-            cp src/android/dex/classes.dex out/classes.dex
-          fi
+          AJ="${{ steps.sdk.outputs.jar }}"
+          # 关键：javac 必须 -cp 到 android.jar，d8 必须 --lib，否则 import android.* 全部报
+          # "package does not exist"（第一次 CI 就是挂在这里）
+          javac -source 11 -target 11 -nowarn -encoding UTF-8 \
+            -cp "$AJ" -d out/classes src/android/java/pet/runtime/*.java
+          $BT/d8 --min-api 28 --lib "$AJ" --output out $(find out/classes -name '*.class')
           ls -l out/classes.dex
 
       - name: aapt2 link + 打包
         run: |
           BT=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
           $BT/aapt2 link -o out/base.apk \
-            -I $ANDROID_HOME/platforms/android-36/android.jar \
+            -I "${{ steps.sdk.outputs.jar }}" \
             --manifest src/android/AndroidManifest.xml \
             --version-code ${{ steps.v.outputs.code }} \
             --version-name ${{ steps.v.outputs.name }} \
