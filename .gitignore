@@ -1,0 +1,15 @@
+# 构建产物
+build/
+*.apk
+*.keystore
+
+# 运行时文件不入库
+files/
+state.cfg
+screen.cfg
+ctl
+skins/.cur
+
+# 设备侧辅助工具（不属于仓库）
+runas
+runas.c

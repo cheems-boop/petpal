@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  petpal 自写 manifest。
+  v1.5 及以前的 APK 是从系统骨架 APK 崩出来的，里面残留：
+    platformBuildVersion 36/16、theme @01030010、defaultToDeviceProtectedStorage、directBootAware
+  这些都是别家的产物（AOSP），挂在 MIT 仓库下不合适，所以 v1.6 起改为自建。
+
+  构建时由 tools/build.sh 注入版本号（aapt2 link 的 versionCode/versionName 参数），
+  因此本文件故意不写 versionCode / versionName（单一真源 = module/module.prop）。
+  注：XML 注释里不能出现两个连续的减号，所以此处不写命令行形式。
+
+  相比 v1.5 的行为差异（均为有意）：
+    1. CtlRx 改 exported=false。v1.5 是 true，任何 App 发个 pet.ctl 广播就能暂停/换肤。
+    2. 去掉 defaultToDeviceProtectedStorage / directBootAware。开机解锁前不启动；
+       反正 service.sh 也是等 boot_completed 才拉起。
+    3. 不再引用骨架的 theme / label 资源，直接用字符串。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="pet.runtime">
+
+    <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="36" />
+
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 故意没有 INTERNET：纯本地渲染，不联网 -->
+
+    <application
+        android:label="桌面宠物"
+        android:extractNativeLibs="true"
+        android:usesNonSdkApi="true">
+
+        <service
+            android:name=".Host"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android:PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="desktop pet overlay" />
+        </service>
+
+        <activity
+            android:name=".Main"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- v1.6: 不再对外暴露；v1.5 的 exported=true 让任何 App 能广播 pet.ctl -->
+        <receiver
+            android:name=".CtlRx"
+            android:exported="false" />
+    </application>
+</manifest>

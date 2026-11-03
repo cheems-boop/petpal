@@ -1,0 +1,105 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 版本号单一真源：module/module.prop
+      - name: 读版本号
+        id: v
+        run: |
+          VER=$(sed -n 's/^version=v//p' module/module.prop | head -1)
+          CODE=$(sed -n 's/^versionCode=//p' module/module.prop | head -1)
+          echo "name=$VER" >> $GITHUB_OUTPUT
+          echo "code=1$CODE" >> $GITHUB_OUTPUT
+
+      # C 核心：零依赖，直接用 NDK 的 clang
+      - name: 编译 libpethost.so
+        run: |
+          $ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang \
+            --target=aarch64-linux-android28 -O2 -fPIC -shared \
+            -Wall -Wextra -Wno-unused-parameter \
+            -o libpethost.so src/pethost.c -llog -landroid -lm
+
+      - name: 参数校验（-Wall 零告警是承诺）
+        run: |
+          $ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang \
+            --target=aarch64-linux-android28 -fsyntax-only -Wall -Wextra \
+            -Werror -Wno-unused-parameter src/pethost.c
+
+      - name: dex
+        run: |
+          if [ -f src/android/java/pet/runtime/Main.java ]; then
+            mkdir -p out/classes
+            javac -source 11 -target 11 -nowarn -d out/classes src/android/java/pet/runtime/*.java
+            $ANDROID_HOME/build-tools/*/d8 --min-api 28 --output out out/classes/pet/runtime/*.class
+          else
+            echo "使用预编译字节码 src/android/dex/classes.dex"
+            cp src/android/dex/classes.dex out/classes.dex 2>/dev/null || { mkdir -p out; cp src/android/dex/classes.dex out/classes.dex; }
+          fi
+
+      - name: aapt2 link + 打包
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
+          $BT/aapt2 link -o out/base.apk \
+            -I $ANDROID_HOME/platforms/android-36/android.jar \
+            --manifest src/android/AndroidManifest.xml \
+            --version-code ${{ steps.v.outputs.code }} \
+            --version-name ${{ steps.v.outputs.name }} \
+            --min-sdk-version 28 --target-sdk-version 36
+          cd out && zip -q base.apk classes.dex && mkdir -p lib/arm64-v8a && \
+            cp ../libpethost.so lib/arm64-v8a/ && zip -q -r base.apk lib && cd ..
+
+      - name: 签名
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KS_PASS: ${{ secrets.KEY_PASS }}
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > release.keystore
+            $BT/apksigner sign --ks release.keystore --ks-key-alias "$KS_ALIAS" \
+              --ks-pass "pass:$KS_PASS" --key-pass "pass:$KS_PASS" \
+              --out petpal.apk out/base.apk
+          else
+            keytool -genkeypair -keystore dev.keystore -alias petpal -keyalg RSA -keysize 2048 \
+              -validity 10000 -storepass devdev -keypass devdev -dname "CN=petpal-dev" >/dev/null 2>&1
+            $BT/apksigner sign --ks dev.keystore --ks-key-alias petpal \
+              --ks-pass pass:devdev --key-pass pass:devdev --out petpal.apk out/base.apk
+            echo "::warning::没有配置 KEYSTORE_BASE64，这次产物是 debug 签名，不能当发布包"
+          fi
+          $BT/apksigner verify --print-certs petpal.apk | head -5
+
+      - name: 打模块 zip
+        run: |
+          rm -rf pkg && mkdir -p pkg
+          cp module/module.prop module/service.sh module/ctl.sh module/customize.sh pkg/
+          cp petpal.apk pkg/petpal.apk
+          cp -a module/skins module/webroot pkg/
+          cd pkg && zip -qr ../petpal-module.zip . && cd ..
+          ls -l petpal.apk petpal-module.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: petpal-${{ steps.v.outputs.name }}
+          path: |
+            petpal.apk
+            petpal-module.zip
+
+      - name: 打 tag 时自动发 Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            petpal.apk
+            petpal-module.zip

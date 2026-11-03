@@ -1,0 +1,6 @@
+id=petpal
+name=桌面宠物 Desktop Pet
+version=v1.5
+versionCode=5
+author=built-with-MCP
+description=1080 超采样渲染的桌面宠物：拖拽/抚摸攒心/双击睡醒/长按喂食/皮肤热切换。纯 root 运行，自带 WebUI 控制面板。

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>桌面宠物</title>
+<style>
+:root{color-scheme:dark}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0f1115;color:#e9eaee;margin:0;padding:18px 16px 40px}
+h1{font-size:18px;margin:0 0 3px}
+.sub{color:#868c99;font-size:12px;margin-bottom:16px}
+.card{background:#191c24;border-radius:16px;padding:12px;margin-bottom:12px}
+.grp{color:#868c99;font-size:11px;letter-spacing:.06em;margin:2px 0 8px 4px}
+button{display:block;width:100%;padding:14px;margin:8px 0;border:0;border-radius:12px;
+  background:#2b3140;color:#e9eaee;font-size:15px;font-weight:500;text-align:left;padding-left:18px}
+button:active{background:#3d465c}
+button[disabled]{opacity:.45}
+button.p{background:#3a2a34}
+#log{font-family:ui-monospace,monospace;font-size:11.5px;line-height:1.5;color:#8b93a3;
+  white-space:pre-wrap;word-break:break-all;max-height:260px;overflow:auto}
+#log.err{color:#ff9b9b}
+</style></head><body>
+<h1>桌面宠物</h1>
+<div class="sub">pet.runtime · 仅限 root</div>
+<div class="card">
+  <div class="grp">外观</div>
+  <button onclick="run('skin',this)">换皮肤</button>
+  <button onclick="run('status',this)">查看状态</button>
+</div>
+<div class="card">
+  <div class="grp">运行</div>
+  <button onclick="run('pause',this)">暂停动画</button>
+  <button onclick="run('resume',this)">恢复动画</button>
+  <button onclick="run('start',this)">启动宠物</button>
+  <button class="p" onclick="run('stop',this)">停止宠物</button>
+</div>
+<div class="card">
+  <div class="grp">输出</div>
+  <div id="log">就绪</div>
+</div>
+<script>
+/* v1.5:
+ * 1) 模块目录不再写死 —— 每次执行现找 id=petpal 的模块，改名/换路径也能用
+ * 2) 多种 root 执行接口兼容   3) 连点防抖（按钮执行期间全部禁用）   4) 错误单独标红
+ */
+var FIND = 'CTL=""; for d in /data/adb/modules/*/; do if [ -f "$d/module.prop" ] && grep -qx "id=petpal" "$d/module.prop" 2>/dev/null; then CTL="${d}ctl.sh"; break; fi; done; ' +
+           '[ -n "$CTL" ] || CTL=/data/adb/modules/petpal/ctl.sh; ';
+var busy = false;
+
+function api(){
+  if (window.ksu && typeof ksu.exec === 'function') return ksu.exec.bind(ksu);
+  if (typeof ksu === 'object' && ksu && typeof ksu.exec === 'function') return ksu.exec.bind(ksu);
+  if (typeof exec === 'function') return exec;
+  if (window.api && typeof api.exec === 'function') return api.exec.bind(api);
+  if (window.MM && typeof MM.exec === 'function') return MM.exec.bind(MM);
+  return null;
+}
+
+async function sh(cmd){
+  var f = api();
+  if (!f) return { err: '未找到 root 执行接口（ksu.exec / exec 都不可用）' };
+  try {
+    var r = await f(cmd);
+    if (r && typeof r === 'object') {
+      if (r.errno !== undefined && r.errno !== 0) return { err: r.stderr || ('errno ' + r.errno) };
+      return { out: (r.stdout !== undefined ? r.stdout : String(r)) };
+    }
+    return { out: String(r) };
+  } catch (e) { return { err: String(e) }; }
+}
+
+async function run(a){
+  var el = document.getElementById('log');
+  if (busy) return;
+  busy = true;
+  var all = document.querySelectorAll('button');
+  for (var i = 0; i < all.length; i++) all[i].disabled = true;
+  el.className = '';
+  el.textContent = '> ' + a + ' ...';
+  var r = await sh(FIND + 'sh "$CTL" ' + a);
+  el.textContent = '> ' + a + '\n' + (r.err ? ('✗ ' + r.err) : (r.out || '(ok)'));
+  if (r.err) el.className = 'err';
+  busy = false;
+  for (var j = 0; j < all.length; j++) all[j].disabled = false;
+}
+</script></body></html>
