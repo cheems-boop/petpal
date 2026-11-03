@@ -47,6 +47,7 @@ jobs:
             (yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" >/dev/null) || true
             AJ=$(ls -d $ANDROID_HOME/platforms/android-*/android.jar | sort -V | tail -1)
           fi
+          [ -n "$AJ" ] || { echo "::error::没找到任何 platforms/android-*/android.jar"; exit 1; }
           echo "android.jar=$AJ"
           echo "jar=$AJ" >> $GITHUB_OUTPUT
 
