@@ -23,6 +23,7 @@ AAPT2=${AAPT2:-$PREFIX/bin/aapt2}
 APKSIGNER=${APKSIGNER:-$PREFIX/bin/apksigner}
 KEYTOOL=${KEYTOOL:-$PREFIX/bin/keytool}
 PY=${PY:-$PREFIX/bin/python3}
+ANDROID_JAR=${ANDROID_JAR:-$ROOT/tools/sdk/android.jar}
 FRAMEWORK=${FRAMEWORK:-/system/framework/framework-res.apk}
 # 签名：仓库自带 tools/signing/petpal.jks（别名 petpal / 口令 petpal）。
 # 密钥公开是刻意的取舍：零 secrets、`git tag` 即可发正式包；代价是别人也能签出同名包，
@@ -35,7 +36,11 @@ KEY_PASS=${KEY_PASS:-petpal}
 
 need() { [ -x "$1" ] || { echo "缺少工具: $1"; exit 1; }; }
 need "$CLANG"; need "$AAPT2"; need "$APKSIGNER"; need "$PY"
-[ -f "$FRAMEWORK" ] || { echo "缺少框架资源: $FRAMEWORK（需要 root 可读）"; exit 1; }
+
+# aapt2 需要一个带 resources.arsc 的包：优先平台 android.jar，其次用机上 system 的 framework-res
+AAPT_INC="$ANDROID_JAR"
+[ -f "$AAPT_INC" ] || AAPT_INC="$FRAMEWORK"
+[ -f "$AAPT_INC" ] || { echo "缺少框架资源：既没有 $ANDROID_JAR 也没有 $FRAMEWORK"; exit 1; }
 
 VER_NAME=$(sed -n 's/^version=v//p' module/module.prop | head -1)
 VER_CODE=$(sed -n 's/^versionCode=//p' module/module.prop | head -1)
@@ -57,10 +62,16 @@ echo "== 2/5 生成 classes.dex =="
 if [ -f src/android/java/pet/runtime/Main.java ]; then
   echo "   从 Java 源码编译"
   need "$PREFIX/bin/javac"; need "$PREFIX/bin/d8"
+  [ -f "$ANDROID_JAR" ] || {
+    echo "缺 android.jar（$ANDROID_JAR）"
+    echo "  本机放一份 platform 的 android.jar 到 tools/sdk/ 即可；或者直接用 CI 构建。"
+    exit 1
+  }
   mkdir -p "$OUT/classes"
-  "$PREFIX/bin/javac" -source 11 -target 11 -nowarn \
-    -cp "$FRAMEWORK" -d "$OUT/classes" src/android/java/pet/runtime/*.java
-  "$PREFIX/bin/d8" --min-api 28 --output "$OUT" $(find "$OUT/classes" -name '*.class')
+  "$PREFIX/bin/javac" -source 11 -target 11 -nowarn -encoding UTF-8 \
+    -cp "$ANDROID_JAR" -d "$OUT/classes" src/android/java/pet/runtime/*.java
+  "$PREFIX/bin/d8" --min-api 28 --lib "$ANDROID_JAR" --output "$OUT" \
+    $(find "$OUT/classes" -name '*.class')
 else
   echo "   用预编译字节码 src/android/dex/classes.dex"
   cp src/android/dex/classes.dex "$OUT/classes.dex"
@@ -70,7 +81,7 @@ ls -l "$OUT/classes.dex"
 # 3) resources + manifest
 echo "== 3/5 aapt2 link =="
 $AAPT2 link -o "$OUT/base.apk" \
-  -I "$FRAMEWORK" \
+  -I "$AAPT_INC" \
   --manifest src/android/AndroidManifest.xml \
   --version-code "$VC" --version-name "$VER_NAME" \
   --min-sdk-version 28 --target-sdk-version 36

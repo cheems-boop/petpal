@@ -51,9 +51,12 @@
             </intent-filter>
         </activity>
 
-        <!-- v1.6: 不再对外暴露；v1.5 的 exported=true 让任何 App 能广播 pet.ctl -->
-        <receiver
-            android:name=".CtlRx"
-            android:exported="false" />
+        <!--
+          v1.6 删掉了 CtlRx receiver：
+            - v1.5 是 exported=true，任何 App 发 pet.ctl 广播就能暂停/换肤
+            - 而且它的判空写反了（`if (c != null) return;`），从来只会在“无 extra”时
+              落到 nativeResume()，实际是个只会踩一下渲染的坑
+          外部控制统一走 ctl.sh（文件通道，需要 root）或 WebUI。
+        -->
     </application>
 </manifest>

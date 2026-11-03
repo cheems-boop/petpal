@@ -1,8 +1,29 @@
-# 桌面宠物 PetPal
+# petpal · 桌面宠物
 
-> 一只跑在 Android 桌面上的小宠物。**纯 root 运行，不联网、不申请多余权限、不依赖任何第三方 App**。
->
-> 渲染核心用 C 手写软光栅，胶水层是 6 个 smali 类，整体 APK 只有 41KB。
+**一只浮在 Android 桌面上的团子。37 KB，无网络权限，渲染核心是一千行手写 C 软光栅。**
+
+它不依赖任何第三方 App、不申请多余权限、不联网。悬浮窗由 KernelSU/Magisk 模块开机拉起，
+渲染全在 `libpethost.so` 里手算——**没有一张图片、没用 OpenGL、没用 Skia**，
+球体明暗、边缘反光、抗锯齿都是自己算出来的。
+
+| | |
+|---|---|
+| **37 KB** | 整个 APK，含 36 KB native 渲染核心；无美术资源 |
+| **无网络权限** | manifest 里没有 `INTERNET`，一行都没有 |
+| **可复现构建** | `tools/build.sh` 一条命令出包（clang + aapt2 + d8 + apksigner），CI 同款 |
+| **文件即协议** | 换肤/暂停/喂食全走 `files/ctl`，root 脚本和 WebUI 都能控 |
+| **1080 超采样** | 1080×1080 软光栅上屏缩到 525px，边缘干净到不像手写 |
+
+```sh
+# 装好模块后重启即可。手动控制：
+/data/adb/modules/petpal/ctl.sh status     # 心情 / 能量 / 亲密度 / 皮肤
+/data/adb/modules/petpal/ctl.sh skin:fox   # 换皮肤（热重载，不用重装）
+/data/adb/modules/petpal/ctl.sh pause      # 停渲染
+```
+
+> 面向开发者的实现细节：[docs/protocol.md](docs/protocol.md)（文件协议 + JNI 面）、
+> [docs/DECISIONS.md](docs/DECISIONS.md)（为什么这么设计）、`docs/tech-notes.md`（平台踩坑）。
+> 想改造就直接看 `src/pethost.c`，它是自包含的，不依赖任何 Android 头文件以外的库。
 
 ## 它长什么样
 

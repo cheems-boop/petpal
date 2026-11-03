@@ -15,3 +15,6 @@ skins/.cur
 # 设备侧辅助工具（不属于仓库）
 runas
 runas.c
+
+# 本地 SDK（android.jar 27MB，绝不能入库；CI 用 ANDROID_HOME 里的）
+tools/sdk/
