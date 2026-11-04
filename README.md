@@ -110,7 +110,7 @@ size=1.05          # 整体缩放 0.55~1.45
 ## 目录结构
 
 ```
-module/                   KSU 模块（打包成 zip 刷入）
+module/                   KSU 模块（打包成 zip 刷入，记得安装apk）
   module.prop
   service.sh              开机预置 + 拉起 + 30s 看门狗
   ctl.sh                  控制脚本（文件通道）
